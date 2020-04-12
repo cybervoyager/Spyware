@@ -14,6 +14,7 @@ data_socket.connect((HOST, DATA_PORT))
 
 while True:
     cmd = main_socket.recv(HDR_SIZE).decode("utf-8")
+    print(cmd)
 
     if cmd == 'take_pic':
         camera = cv2.VideoCapture(0)

