@@ -1,5 +1,8 @@
 import os
 import random
+import pickle
+import cv2
+
 
 def clear_screen():
     os.system("cls" if os.name == "nt" else "clear")
@@ -23,50 +26,21 @@ def random_name():
     return name
 
 
-def beautify(text, symbol, side=0, desired_len=0):
-
-    txt = ''
-    if side == 'top' or not side:
-        txt += str(symbol * (len(text) if not desired_len else desired_len)) + '\n'
-        if side:
-            return txt + text
-
-    if side == 'bottom' or not side:
-        txt += text + '\n' + str(symbol * (len(text) if not desired_len else desired_len))
-        if side:
-            return txt
-
-    return txt
-
-
-def data_downloader(data):
-    import pickle
-
-    new_msg = True
-    full_msg = b''
-    msg_size = 0
+def img_downloader(conn):
     buffer = 1024
+    size = int(conn.recv(1024).decode('utf-8'))
+    received_size = 0
+    data = b''
+    conn.send('ok'.encode('utf-8'))
 
-    while True:
-        try:
-            msg = data.recv(buffer)
+    while size - received_size:
+        received_data = conn.recv(buffer)
+        received_size += len(received_data)
+        data += received_data
 
-            if new_msg:
-                msg_size = int(msg[:buffer])
-                new_msg = False
+    image = pickle.loads(data)
+    cv2.imwrite('image.png', image)
 
-            full_msg += msg
-
-            if len(full_msg) - buffer == msg_size:
-                my_data = pickle.loads(full_msg[buffer:])
-                full_msg = b''
-                new_msg = True
-                return my_data
-
-        except ConnectionResetError:
-            break
-
-    return True
 
 
 ascii_logo = r"""

