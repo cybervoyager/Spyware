@@ -5,6 +5,10 @@ def clear_screen():
     os.system("cls" if os.name == "nt" else "clear")
 
 
+def press_enter():
+    input(' Press ENTER to continue > ')
+
+
 def invalid_inp():
     print("\n ERROR: invalid input")
     input(" ENTER to try again > ")
@@ -33,6 +37,37 @@ def beautify(text, symbol, side=0, desired_len=0):
             return txt
 
     return txt
+
+
+def data_downloader(data):
+    import pickle
+
+    new_msg = True
+    full_msg = b''
+    msg_size = 0
+    buffer = 1024
+
+    while True:
+        try:
+            msg = data.recv(buffer)
+
+            if new_msg:
+                msg_size = int(msg[:buffer])
+                new_msg = False
+
+            full_msg += msg
+
+            if len(full_msg) - buffer == msg_size:
+                my_data = pickle.loads(full_msg[buffer:])
+                full_msg = b''
+                new_msg = True
+                return my_data
+
+        except ConnectionResetError:
+            break
+
+    return True
+
 
 ascii_logo = r"""
  ______     ______   __  __     __     __     ______     ______     ______    

